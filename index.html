@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Oil Spills and Marine Pollution Dashboard</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Barlow:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+
+  <!-- App styles -->
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+
+  <!-- THE MAP — fills entire viewport -->
+  <div id="map"></div>
+
+  <!-- LEFT HUD -->
+  <div id="lefthud" class="hud">
+
+    <div class="view-tabs">
+      <button class="vtab active" data-view="all"        title="All Incidents"><i class="fas fa-globe"></i></button>
+      <button class="vtab"        data-view="fishermen"  title="Fishermen"><i class="fas fa-fish"></i></button>
+      <button class="vtab"        data-view="government" title="Government"><i class="fas fa-landmark"></i></button>
+      <button class="vtab"        data-view="tourism"    title="Tourism"><i class="fas fa-umbrella-beach"></i></button>
+      <button class="vtab"        data-view="residents"  title="Residents"><i class="fas fa-house-flood-water"></i></button>
+    </div>
+
+    <div class="lhud-report-wrap">
+      <button class="lhud-report-btn" id="btn-report-left" title="Open incident reporting form">
+        <i class="fas fa-circle-plus"></i><span>REPORT INCIDENT</span>
+      </button>
+    </div>
+
+    <div class="lhud-label">Incident Type</div>
+    <button class="frow on" data-type="all"><i class="fas fa-globe"></i><span>All Incidents</span><span class="fnum" id="c-all">15</span></button>
+    <button class="frow" data-type="Oil Spill"><i class="fas fa-oil-can"></i><span>Oil Spill</span><span class="fnum" id="c-oil">6</span></button>
+    <button class="frow" data-type="Plastic Waste"><i class="fas fa-recycle"></i><span>Plastic Waste</span><span class="fnum" id="c-pla">4</span></button>
+    <button class="frow" data-type="Chemical Pollution"><i class="fas fa-flask"></i><span>Chemical</span><span class="fnum" id="c-che">3</span></button>
+    <button class="frow" data-type="Algal Bloom"><i class="fas fa-leaf"></i><span>Algal Bloom</span><span class="fnum" id="c-alg">2</span></button>
+
+    <div class="lhud-label" style="margin-top:2px">
+      <span>Statistics</span>
+      <span class="source-tag" id="data-source-tag">DEMO</span>
+    </div>
+    <div class="stat-block">
+      <div class="stat-item">
+        <span class="stat-lbl">Total Incidents</span>
+        <span class="stat-val" id="s-tot">15</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-lbl">High / Critical</span>
+        <span class="stat-val red" id="s-hi">6</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-lbl">Under Investigation</span>
+        <span class="stat-val amb" id="s-inv">3</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-lbl">Resolved</span>
+        <span class="stat-val grn" id="s-res">8</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-lbl">Area Affected</span>
+        <span class="stat-val" id="s-area">288<span class="stat-unit">km²</span></span>
+      </div>
+      <div class="stat-source-meta" id="stat-source-label">
+        <i class="fas fa-circle-info"></i> Fallback sample dataset
+      </div>
+    </div>
+
+    <div class="lhud-label">Districts</div>
+    <div class="dist-wrap">
+      <span class="dist">KOCHI</span>
+      <span class="dist">KOLLAM</span>
+      <span class="dist">ALAPPUZHA</span>
+      <span class="dist">KOZHIKODE</span>
+      <span class="dist">KANNUR</span>
+      <span class="dist">THRISSUR</span>
+      <span class="dist">KASARAGOD</span>
+    </div>
+
+  </div><!-- /lefthud -->
+
+  <!-- RIGHT HUD -->
+  <div id="righthud" class="hud">
+
+    <!-- Insight strip — shown in stakeholder mode -->
+    <div class="ins-strip hidden" id="ins-strip">
+      <div class="ins-side"><span class="ins-side-txt" id="ins-tag">VIEW</span></div>
+      <div class="ins-body">
+        <div class="ins-ttl" id="ins-ttl">—</div>
+        <div class="ins-txt" id="ins-txt">—</div>
+        <div class="ins-pills" id="ins-pills"></div>
+      </div>
+    </div>
+
+    <!-- Metric rows — shown in stakeholder mode -->
+    <div class="mstrip hidden" id="mstrip"></div>
+
+    <!-- Charts — shown in All / Fishermen mode -->
+    <div id="rh-charts">
+      <div class="rhud-hdr">
+        <span class="rhud-title"><i class="fas fa-chart-bar"></i>By Type</span>
+      </div>
+      <div class="chart-box" style="height:140px;"><canvas id="typeChart"></canvas></div>
+      <div class="rhud-hdr" style="border-top:1px solid var(--rule);">
+        <span class="rhud-title"><i class="fas fa-chart-line"></i>Monthly 2024</span>
+      </div>
+      <div class="chart-box" style="height:140px;"><canvas id="trendChart"></canvas></div>
+    </div>
+
+    <!-- Beach Safety — shown in Tourism mode -->
+    <div class="hidden" id="beach-panel" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+      <div class="rhud-hdr">
+        <span class="rhud-title"><i class="fas fa-umbrella-beach"></i>Beach Safety</span>
+        <span class="rhud-meta">by proximity</span>
+      </div>
+      <div class="rlist" id="beach-list"></div>
+    </div>
+
+    <!-- Response Tracker — shown in Government mode -->
+    <div class="hidden" id="resp-panel" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+      <div class="rhud-hdr">
+        <span class="rhud-title"><i class="fas fa-clipboard-check"></i>Response Tracker</span>
+      </div>
+      <div class="rlist" id="resp-list"></div>
+    </div>
+
+    <!-- Health Risk Index — shown in Residents mode -->
+    <div class="hidden" id="health-panel" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+      <div class="rhud-hdr">
+        <span class="rhud-title"><i class="fas fa-heart-pulse"></i>Health Risk Index</span>
+        <span class="rhud-meta">/10</span>
+      </div>
+      <div class="rlist"><div class="hgrid" id="health-grid"></div></div>
+    </div>
+
+  </div><!-- /righthud -->
+
+  <!-- FISHING ZONE LEGEND — shown in Fishermen mode -->
+  <div id="fish-legend" class="hidden">
+    <div class="fleg-item"><span class="fleg-dot" style="background:#00e5b0;box-shadow:0 0 4px #00e5b0"></span>SAFE</div>
+    <div class="fleg-item"><span class="fleg-dot" style="background:#ffae00;box-shadow:0 0 4px #ffae00"></span>CAUTION</div>
+    <div class="fleg-item"><span class="fleg-dot" style="background:#ff3a3a;box-shadow:0 0 4px #ff3a3a"></span>RESTRICTED</div>
+  </div>
+
+  <!-- BOTTOM STRIP -->
+  <div id="bottomstrip" class="hud">
+
+    <div class="bs-stats">
+      <div class="bs-stat">
+        <div class="bs-val" id="b-tot">15</div>
+        <div class="bs-lbl">Incidents</div>
+      </div>
+      <div class="bs-stat red">
+        <div class="bs-val" id="b-hi">6</div>
+        <div class="bs-lbl">Critical</div>
+      </div>
+      <div class="bs-stat amb">
+        <div class="bs-val" id="b-inv">3</div>
+        <div class="bs-lbl">Investigating</div>
+      </div>
+      <div class="bs-stat grn">
+        <div class="bs-val" id="b-res">8</div>
+        <div class="bs-lbl">Resolved</div>
+      </div>
+    </div>
+
+    <div class="bs-ticker">
+      <i class="fas fa-angle-right bs-ticker-icon"></i>
+      <span class="bs-ticker-txt" id="inc-txt">_ click a marker to view incident details</span>
+    </div>
+
+    <div class="bs-controls">
+      <button class="bs-report-btn" id="btn-report" title="Report a new marine pollution incident"><i class="fas fa-plus-circle"></i>REPORT</button>
+      <button class="bs-tbl-btn" id="tbl-btn"><i class="fas fa-table-list"></i>LOG</button>
+      <button class="bs-btn" id="btn-fit"  title="Reset map view"><i class="fas fa-compress-arrows-alt"></i></button>
+      <button class="bs-btn" id="btn-sat"  title="Toggle satellite layer"><i class="fas fa-satellite"></i></button>
+      <div class="bs-live">
+        <span class="blink-dot"></span>LIVE
+      </div>
+      <div class="bs-clock">
+        <span class="bs-clock-time" id="live-time">00:00:00</span>
+        <span class="bs-clock-date" id="live-date">— IST</span>
+      </div>
+      <button class="bs-bell" id="alert-bell">
+        <i class="fas fa-bell"></i>
+        <span class="bell-badge" id="abadge">6</span>
+      </button>
+      <div class="bs-updated">
+        <span class="bs-updated-lbl">Updated</span>
+        <span class="bs-updated-val" id="last-upd">—</span>
+      </div>
+    </div>
+
+  </div><!-- /bottomstrip -->
+
+  <!-- TABLE DRAWER -->
+  <div id="drawer">
+    <div class="drw-hdr" id="drw-hdr">
+      <span class="drw-title"><i class="fas fa-table-list"></i>Incident Log</span>
+      <span class="drw-meta" id="drw-meta">15 records</span>
+    </div>
+
+    <!-- Multi-criteria filter bar -->
+    <div class="drw-filter-bar">
+      <div class="drw-search">
+        <i class="fas fa-magnifying-glass"></i>
+        <input class="drw-inp" id="srch" type="text" placeholder="search title, location, type, id…"/>
+      </div>
+      <div class="drw-filter-group">
+        <label for="filter-sev" class="drw-filter-lbl">Severity</label>
+        <select id="filter-sev" class="drw-select">
+  <option value="all">All</option>
+  <option value="LOW">Low</option>
+  <option value="MEDIUM">Medium</option>
+  <option value="HIGH">High</option>
+  <option value="CRITICAL">Critical</option>
+</select>
+      </div>
+      <div class="drw-filter-group">
+        <label for="filter-status" class="drw-filter-lbl">Status</label>
+        <select id="filter-status" class="drw-select">
+  <option value="all">All</option>
+  <option value="REPORTED">Reported</option>
+  <option value="UNDER_INVESTIGATION">Under Investigation</option>
+  <option value="RESOLVED">Resolved</option>
+</select>
+      </div>
+      <div class="drw-filter-group">
+        <label for="filter-date" class="drw-filter-lbl">Month</label>
+        <input type="month" id="filter-date" class="drw-date-inp" title="Filter by year and month"/>
+      </div>
+      <button class="drw-reset-btn" id="btn-reset-filters" title="Reset all search and filter criteria">
+        <i class="fas fa-rotate-left"></i> Reset
+      </button>
+    </div>
+
+    <div class="drw-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>ID / Title</th>
+            <th>Location</th>
+            <th>Type</th>
+            <th>Severity</th>
+            <th>Status</th>
+            <th>Area</th>
+            <th>Date</th>
+            <th id="imp-th" style="display:none">Impact</th>
+          </tr>
+        </thead>
+        <tbody id="tbl-body"></tbody>
+      </table>
+    </div>
+  </div><!-- /drawer -->
+
+  <!-- ALERT PANEL -->
+  <div id="ap">
+    <div class="ap-hdr">
+      <span class="ap-ttl"><i class="fas fa-triangle-exclamation"></i>Active Alerts</span>
+      <button class="ap-close" id="ap-close"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div class="ap-list" id="ap-list"></div>
+  </div><!-- /ap -->
+
+  <!-- MAP COORDINATE PICKER BANNER -->
+  <div id="map-pick-banner" class="map-pick-banner hidden">
+    <i class="fas fa-crosshairs"></i>
+    <span>Click anywhere on the map to set incident coordinates</span>
+    <button type="button" id="btn-cancel-map-pick" style="background:none;border:1px solid var(--sh);color:var(--sh);margin-left:12px;padding:3px 10px;cursor:pointer;font-family:var(--F2);font-size:10px;text-transform:uppercase">Cancel</button>
+  </div>
+
+  <!-- INCIDENT REPORTING MODAL -->
+  <div id="report-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-ttl">
+    <div class="modal-dialog">
+      <div class="modal-hdr">
+        <div class="modal-ttl" id="modal-ttl">
+          <i class="fas fa-triangle-exclamation"></i>
+          <span>Report Marine Pollution Incident</span>
+        </div>
+        <button class="modal-close" id="report-modal-close" title="Close" aria-label="Close modal">
+          <i class="fas fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-feedback hidden" id="rep-feedback"></div>
+
+        <form id="incident-form" novalidate>
+          <!-- Title -->
+          <div class="form-group">
+            <label for="rep-title" class="form-lbl">
+              Incident Title <span class="req">*</span>
+            </label>
+            <input type="text" id="rep-title" class="form-inp" placeholder="e.g., Heavy fuel oil slick drifting towards harbour" required maxlength="120"/>
+            <span class="field-error" id="err-rep-title"></span>
+          </div>
+
+          <!-- Type & Location in 2 cols -->
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label for="rep-type" class="form-lbl">
+                Pollution Type <span class="req">*</span>
+              </label>
+              <select id="rep-type" class="form-select" required>
+                <option value="Oil Spill" selected>Oil Spill</option>
+                <option value="Plastic Waste">Plastic Waste</option>
+                <option value="Chemical Pollution">Chemical Pollution</option>
+                <option value="Algal Bloom">Algal Bloom</option>
+              </select>
+              <span class="field-error" id="err-rep-type"></span>
+            </div>
+
+            <div class="form-group">
+              <label for="rep-location" class="form-lbl">
+                Location Name <span class="req">*</span>
+              </label>
+              <input type="text" id="rep-location" class="form-inp" placeholder="e.g., Vizhinjam Coast" required maxlength="80"/>
+              <span class="field-error" id="err-rep-location"></span>
+            </div>
+          </div>
+
+          <!-- Latitude & Longitude with Map Picker -->
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label for="rep-lat" class="form-lbl">
+                Latitude (-90 to 90) <span class="req">*</span>
+              </label>
+              <input type="number" id="rep-lat" class="form-inp" placeholder="e.g., 8.3824" step="any" min="-90" max="90" required/>
+              <span class="field-error" id="err-rep-lat"></span>
+            </div>
+
+            <div class="form-group">
+              <label for="rep-lng" class="form-lbl">
+                Longitude (-180 to 180) <span class="req">*</span>
+              </label>
+              <input type="number" id="rep-lng" class="form-inp" placeholder="e.g., 76.9942" step="any" min="-180" max="180" required/>
+              <span class="field-error" id="err-rep-lng"></span>
+            </div>
+          </div>
+
+          <!-- Crosshair picker helper -->
+          <div class="coord-picker-row">
+            <button type="button" class="coord-pick-btn" id="btn-pick-map">
+              <i class="fas fa-crosshairs"></i> Pick Coordinates from Map
+            </button>
+            <span class="coord-hint" id="coord-pick-hint">Click button, then click any map location</span>
+          </div>
+
+          <!-- Severity, Status, Affected Area in 3 cols -->
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label for="rep-sev" class="form-lbl">
+                Severity <span class="req">*</span>
+              </label>
+              <select id="rep-sev" class="form-select" required>
+  <option value="LOW">Low</option>
+  <option value="MEDIUM" selected>Medium</option>
+  <option value="HIGH">High</option>
+  <option value="CRITICAL">Critical</option>
+</select>
+              <span class="field-error" id="err-rep-sev"></span>
+            </div>
+
+            <div class="form-group">
+              <label for="rep-status" class="form-lbl">
+                Status <span class="req">*</span>
+              </label>
+              <select id="rep-status" class="form-select" required>
+  <option value="REPORTED" selected>Reported</option>
+  <option value="UNDER_INVESTIGATION">Under Investigation</option>
+  <option value="RESOLVED">Resolved</option>
+</select>
+              <span class="field-error" id="err-rep-status"></span>
+            </div>
+
+            <div class="form-group">
+              <label for="rep-area" class="form-lbl">
+                Area (km²) <span class="req">*</span>
+              </label>
+              <input type="number" id="rep-area" class="form-inp" placeholder="e.g., 18" min="0" step="0.1" required/>
+              <span class="field-error" id="err-rep-area"></span>
+            </div>
+          </div>
+
+          <!-- Description -->
+          <div class="form-group">
+            <label for="rep-desc" class="form-lbl">
+              Incident Description & Notes <span class="req">*</span>
+            </label>
+            <textarea id="rep-desc" class="form-textarea" rows="3" placeholder="Provide environmental impact context, source vessel/pipeline identification, slick thickness, and urgency details…" required maxlength="500"></textarea>
+            <span class="field-error" id="err-rep-desc"></span>
+          </div>
+
+          <!-- Modal Footer -->
+          <div class="modal-footer">
+            <div class="backend-notice" id="modal-backend-status">
+              <i class="fas fa-circle-info"></i> Local Demo Session
+            </div>
+            <div class="footer-btns">
+              <button type="button" class="btn-cancel" id="btn-cancel-report">Cancel</button>
+              <button type="submit" class="btn-submit" id="btn-submit-report">
+                <i class="fas fa-paper-plane"></i> <span>Submit Report</span>
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  
+
+  <script>
+  window.AWS_INCIDENTS_API_ENDPOINT =
+    "https://w7w77rwjce.execute-api.ap-south-1.amazonaws.com/incidents";
+</script>
+
+<!-- App logic -->
+
+<script src="app.js"></script>
+
+</body>
+</html>
